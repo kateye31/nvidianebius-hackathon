@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nightlight console</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><b>Nightlight</b> <span id="status">loading…</span>
+  <button id="brief">Crew brief (Nemotron)</button></header>
+<main>
+  <div id="map"></div>
+  <aside>
+    <table><thead><tr><th>#</th><th>Unit</th><th>Risk</th><th>HI °F</th><th>Hrs to unsafe</th><th>Why</th></tr></thead>
+    <tbody id="rows"></tbody></table>
+    <pre id="briefOut"></pre>
+  </aside>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

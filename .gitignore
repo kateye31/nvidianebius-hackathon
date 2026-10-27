@@ -1,0 +1,23 @@
+# secrets
+.env
+*.pem
+firmware/nightlight_esp32/config.h
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# data (download with data/*.py, never commit raw dumps)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.sqlite
+*.db
+
+# editors / os
+.DS_Store
+.vscode/
+.idea/
