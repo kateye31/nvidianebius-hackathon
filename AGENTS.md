@@ -7,7 +7,7 @@ ChatGPT/Codex, Cursor, Copilot, Gemini). `CLAUDE.md` just points here.
 
 **Nightlight** — "Utilities can see the grid go dark. Nightlight sees who's
 still in the dark." A $15 ESP32 box in a Florida home that keeps reporting
-after a hurricane outage: grid on/off, indoor heat index, signs of life (PIR),
+after a hurricane outage: grid on/off, indoor heat index, signs of life (ultrasonic motion),
 an SOS button, and a relay that sheds the AC to protect a medical load on
 backup power. The cloud ranks homes by danger and Nemotron writes the crew's
 restoration brief.
