@@ -51,6 +51,9 @@ more than `MOTION_CM` (8 cm) between readings counts as motion.
 
 - Sends a packet every 5 s, and immediately when the grid or SOS changes.
 - Prints each packet as 24 hex bytes plus a readable line, then `POST -> 200`.
+- **Offline queue:** if the hotspot drops, up to 48 packets (4 min) wait in
+  RAM and are sent in order when it comes back, so the outage timeline has no
+  gap. Older packets are dropped first if it stays down longer.
 - SOS stays flagged for 60 s after a press (an interrupt catches presses
   during a POST).
 - **Demo clock:** `DEMO_SPEEDUP 900` means 1 real second = 15 simulated
@@ -76,7 +79,7 @@ on **Maximize Compatibility** (the ESP32 only does 2.4 GHz).
 | Motion fires constantly | aim at a flat wall, fix the sensor, `MOTION_CM 12` |
 | grid always 0 | charger black wire to ESP32 GND; junction to GPIO26 |
 | grid always 1 | junction wired straight to 5 V: **unplug now** |
-| "no wifi, skipped" | hotspot on 2.4 GHz, keep the hotspot screen open |
+| "no wifi, queued" | hotspot on 2.4 GHz, keep the hotspot screen open |
 | `POST -> -1` | phone has no data, or wrong URL |
 | `POST -> 401` | `INGEST_KEY` differs from the server's `.env` |
 | `POST -> 400` | wrong packet; reflash the sketch that matches `packet.h` |
