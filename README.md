@@ -16,9 +16,24 @@ NVIDIA Nemotron on Nebius Token Factory writes the crew's restoration brief.
 
 | Real | Simulated (labeled in UI and data) |
 |---|---|
-| ESP32 unit, sensors, relay, phone relay | the other homes on the map |
-| Cloud API, scorer, Nemotron calls | the island-wide outage scenario |
+| One ESP32 unit: DHT11 heat, HC-SR04 motion, grid sense, SOS, LED | the other homes on the map |
+| Phone hotspot relay to the cloud | the island-wide outage scenario |
+| Cloud API, scorer, Nemotron calls | |
 | Public data: EAGLE-I, emPOWER, NOAA, Census | |
+
+Honest limits:
+
+- **One real unit.** Every other home on the map is synthetic and marked SIMULATED.
+- **Accelerated clock.** The demo firmware runs hours dark / hours since
+  motion 900× faster (1 real second = 15 simulated minutes), because nobody
+  can wait 14 hours on camera. `DEMO_SPEEDUP 1.0` is real time.
+- **Battery is not measured.** A plain power bank reports nothing, so the
+  unit sends "unknown" (255) instead of a made-up percentage.
+- **Motion is an ultrasonic distance change**, not a PIR (none in our kit).
+- **The relay is optional** and not in the demo build; load shedding is
+  designed (`HAS_RELAY`) but not filmed.
+- If Token Factory is unreachable, the crew brief falls back to a template
+  labeled "scorer only, Nemotron not called".
 
 ## Architecture
 
@@ -26,7 +41,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Wire format:
 [docs/PACKET.md](docs/PACKET.md).
 
 ```
-ESP32 (DHT11, PIR, grid sense, SOS, relay) -> 24-byte packet
+ESP32 (DHT11, HC-SR04 motion, grid sense, SOS, LED) -> 24-byte packet
   -> phone hotspot -> HTTPS -> FastAPI on Nebius Serverless Endpoint
   -> SQLite -> risk scorer + hours-to-unsafe forecast
   -> Nemotron Nano (check-ins, per-home triage) / Super (crew brief) / Ultra (trade-offs)
@@ -44,10 +59,24 @@ cd cloud
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest -q
-uvicorn app.main:app --port 8000
-# new terminal: send a test packet (labeled synthetic)
+uvicorn app.main:app --host 0.0.0.0 --port 8000   # 0.0.0.0 so the ESP32 can reach it
+# new terminal: one synthetic test unit, then a labeled simulated fleet
 python tools_send_test_packet.py
+python tools_send_test_packet.py --fleet 150 --med-share X --elderly-share Y  # emPOWER / ACS ratios
 # open http://localhost:8000
+```
+
+API endpoints:
+
+| Endpoint | What |
+|---|---|
+| `POST /v1/ingest` | the ESP32's 24-byte packet, base64 (`X-Unit-Key` header) |
+| `POST /api/packet` | the same data as plain JSON, for curl/debugging (same header) |
+| `GET /v1/homes` | homes ranked by the deterministic scorer |
+| `GET /v1/brief` | crew brief: Nemotron Super, or a labeled scorer-only template |
+| `POST /v1/checkin` | resident free text -> structured need (Nemotron Nano) |
+
+```bash
 ```
 
 Hardware: see [firmware/README.md](firmware/README.md).

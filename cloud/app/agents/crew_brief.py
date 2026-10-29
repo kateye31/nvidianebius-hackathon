@@ -15,3 +15,24 @@ The dispatcher makes the final decision."""
 async def write(ranked: list[dict], context: str = "", top_n: int = 8) -> str:
     payload = {"ranked_homes": ranked[:top_n], "live_context": context}
     return await chat(SUPER, SYSTEM, json.dumps(payload), max_tokens=900)
+
+
+WHY = dict(heat="indoor heat index high", trend="heating toward danger", dark="long time without power",
+           still="no movement detected", med="medical device depends on power",
+           gen="generator suspected", occ="several occupants")
+
+
+def template(ranked: list[dict], top_n: int = 8, reason: str = "") -> str:
+    """No-LLM fallback built only from scorer fields, so the console still works
+    without credits. Labeled so nobody mistakes it for a Nemotron brief."""
+    lines = [f"TEMPLATE BRIEF (scorer only, Nemotron not called{': ' + reason if reason else ''})"]
+    for i, h in enumerate(ranked[:top_n], 1):
+        h2u = h.get("hours_to_unsafe")
+        lines.append(
+            f"{i}. Unit {h['unit_id']}{' (simulated)' if h.get('synthetic') else ''}: risk {h['risk']}"
+            f"{' · SOS' if h.get('sos') else ''} · grid {'on' if h.get('grid_present') else 'OFF'}"
+            f" · HI {h['heat_index_f']} F · "
+            + ("already unsafe" if h2u == 0 else f"{h2u} h to unsafe" if h2u is not None else "no heat trend yet")
+            + " · " + ", ".join(WHY[r] for r in h["top_reasons"]))
+    lines.append("The dispatcher makes the final decision.")
+    return "\n".join(lines)

@@ -12,8 +12,10 @@
 <main>
   <div id="map"></div>
   <aside>
-    <table><thead><tr><th>#</th><th>Unit</th><th>Risk</th><th>HI °F</th><th>Hrs to unsafe</th><th>Why</th></tr></thead>
+    <table><thead><tr><th>#</th><th>Unit</th><th>Risk</th><th>Grid</th><th>HI °F</th><th>Hrs dark</th><th>Hrs still</th><th>Hrs to unsafe</th><th>Why</th></tr></thead>
     <tbody id="rows"></tbody></table>
+    <p class="note">Hours are device-clock hours. The real unit runs a 900× demo clock
+      (1 real second = 15 simulated minutes). Homes marked SIMULATED are synthetic.</p>
     <pre id="briefOut"></pre>
   </aside>
 </main>

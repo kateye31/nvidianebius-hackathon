@@ -3,12 +3,17 @@
 body { margin:0; font:14px system-ui,sans-serif; background:var(--bg); color:var(--fg); }
 header { display:flex; gap:12px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); }
 #status { color:var(--muted); flex:1; }
-main { display:grid; grid-template-columns:1fr 460px; height:calc(100vh - 46px); }
+main { display:grid; grid-template-columns:1fr 620px; height:calc(100vh - 46px); }
 #map { height:100%; }
 aside { overflow:auto; padding:12px; border-left:1px solid var(--line); }
 table { width:100%; border-collapse:collapse; }
 td, th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
 .sim { color:var(--muted); font-size:11px; }
+.live { color:#3fb950; font-size:11px; }
+.stale { color:#d29922; font-size:11px; }
+.off { color:#f85149; }
+.sosrow { background:#3d1418; }
+.note { color:var(--muted); font-size:12px; }
 pre { white-space:pre-wrap; }
 button { background:#238636; color:#fff; border:0; padding:6px 10px; border-radius:6px; cursor:pointer; }
 @media (max-width:800px) { main { grid-template-columns:1fr; grid-template-rows:50vh auto; height:auto; } }

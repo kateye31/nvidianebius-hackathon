@@ -4,6 +4,8 @@
 #include <string.h>
 
 enum : uint8_t { F_GRID = 1, F_SOS = 2, F_GEN = 4, F_SHED = 8, F_MED = 16 };
+// battery_pct 255 = unknown. min_since_motion, min_dark, uptime_s use the device
+// clock, which runs DEMO_SPEEDUP times faster than real time in the demo build.
 
 #pragma pack(push, 1)
 struct NightlightPacket {
@@ -11,7 +13,7 @@ struct NightlightPacket {
   uint16_t unit_id;
   uint16_t seq;
   uint8_t  flags;
-  uint8_t  battery_pct;
+  uint8_t  battery_pct;      // 0-100, 255 = unknown
   int16_t  temp_c_x10;
   uint8_t  humidity_pct;
   int16_t  heat_index_c_x10;
