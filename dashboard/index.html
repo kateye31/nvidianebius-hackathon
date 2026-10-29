@@ -8,6 +8,7 @@
 </head>
 <body>
 <header><b>Nightlight</b> <span id="status">loading…</span>
+  <button id="triage" class="ghost">Explain top 20 (Nano)</button>
   <button id="brief">Crew brief (Nemotron)</button></header>
 <main>
   <div id="map"></div>
@@ -17,6 +18,22 @@
     <p class="note">Hours are device-clock hours. The real unit runs a 900× demo clock
       (1 real second = 15 simulated minutes). Homes marked SIMULATED are synthetic.</p>
     <pre id="briefOut"></pre>
+
+    <section id="simPanel" hidden>
+      <h3>Planning results <span class="sim">Nebius Serverless Job</span></h3>
+      <div class="tiles" id="simTiles"></div>
+      <div id="simBars" role="img"></div>
+    </section>
+
+    <section>
+      <h3>Resident check-in <span class="sim">parsed by Nemotron Nano</span></h3>
+      <form id="checkin">
+        <input id="ciUnit" type="number" min="0" max="65535" value="1" aria-label="Unit id">
+        <input id="ciText" placeholder="e.g. my mom's oxygen machine battery dies tonight" aria-label="Message">
+        <button>Parse</button>
+      </form>
+      <pre id="ciOut"></pre>
+    </section>
   </aside>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

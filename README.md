@@ -75,6 +75,9 @@ API endpoints:
 | `GET /v1/homes` | homes ranked by the deterministic scorer |
 | `GET /v1/brief` | crew brief: Nemotron Super, or a labeled scorer-only template |
 | `POST /v1/checkin` | resident free text -> structured need (Nemotron Nano) |
+| `GET /v1/triage?top=20` | one-line reason per top home (Nemotron Nano fan-out, semaphore 20) |
+| `GET /v1/sim` | latest Serverless Job outputs from `data/processed/` (`SIM_DATA_DIR`); each labeled simulated or real |
+| `GET /v1/usage` | per-model Token Factory calls, tokens and average latency (for FEEDBACK.md) |
 
 ```bash
 ```
@@ -93,7 +96,7 @@ Simulation: see [sim/README.md](sim/README.md).
 | Nebius Serverless Endpoint — hosts the API and console | `cloud/Dockerfile` |
 | Nebius Serverless Job — outage simulation and prediction | `sim/Dockerfile` |
 
-TODO: add where Token Factory sped us up (latency, cost per run).
+TODO(mate): add where Token Factory sped us up — read real numbers from `GET /v1/usage` after a demo run.
 
 ## Risk scoring
 

@@ -130,7 +130,10 @@ class CheckIn(BaseModel):
 @app.post("/v1/checkin")
 async def checkin(body: CheckIn):
     from .agents.checkin_parser import parse
-    parsed = await parse(body.text)
+    try:
+        parsed = await parse(body.text)
+    except Exception as e:  # no key / credits: say so instead of guessing a need
+        raise HTTPException(503, f"Nemotron unavailable ({type(e).__name__}); check-in not parsed")
     with db.conn() as c:
         c.execute("INSERT INTO checkins VALUES (?, strftime('%s','now'), ?, ?)",
                   (body.unit_id, body.text, json.dumps(parsed)))
@@ -151,6 +154,38 @@ async def brief(zip_code: str = "33956"):
     except Exception as e:  # no key / no credits / timeout: scorer-only brief, labeled
         text, source = template(ranked, reason=type(e).__name__), "template"
     return {"brief": text, "source": source, "context": ctx, "n_homes": len(ranked)}
+
+
+@app.get("/v1/triage")
+async def triage(top: int = 20):
+    """Nemotron Nano fan-out: one short reason per top-ranked home (semaphore 20).
+    The ranking is the scorer's; Nano only words it."""
+    from .agents.triage_fanout import explain_all
+    ranked = homes()[:max(1, min(top, 50))]
+    return {"why": await explain_all(ranked)}
+
+
+@app.get("/v1/usage")
+def usage():
+    from .agents.client import usage_summary
+    return usage_summary()
+
+
+DATA_DIR = Path(os.environ.get("SIM_DATA_DIR", Path(__file__).resolve().parents[2] / "data" / "processed"))
+
+
+@app.get("/v1/sim")
+def sim():
+    """Latest Serverless Job outputs, if present. Each file carries its own
+    `simulated` flag (the Milton forecaster is real data; the rest is simulated)."""
+    out: dict = {}
+    for name in ("sim_result", "hubs", "demand_response", "predict_milton"):
+        f = DATA_DIR / f"{name}.json"
+        if f.exists():
+            d = json.loads(f.read_text())
+            d.pop("trials", None)
+            out[name] = d
+    return out
 
 
 DASH = Path(os.environ.get("DASHBOARD_DIR", Path(__file__).resolve().parents[2] / "dashboard"))
