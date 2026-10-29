@@ -5,9 +5,9 @@
 ```mermaid
 flowchart LR
   subgraph Home["In the home (real hardware)"]
-    S[DHT11 heat<br/>PIR motion<br/>grid sense<br/>SOS button] --> E[ESP32<br/>24-byte packet]
-    E --> R[2-ch relay<br/>shed AC, keep O2 load]
-    E --> O[OLED + buzzer<br/>hours-to-unsafe countdown]
+    S[DHT11 heat<br/>HC-SR04 motion<br/>grid sense<br/>SOS button] --> E[ESP32<br/>24-byte packet]
+    E --> L[status LED<br/>backup power / SOS]
+    E -.optional.-> R[2-ch relay<br/>shed AC, keep O2 load]
   end
   E -- Wi-Fi via phone hotspot<br/>HTTPS POST --> I
 
@@ -29,7 +29,7 @@ flowchart LR
 
 | Layer | Real or simulated | Notes |
 |---|---|---|
-| ESP32 unit | **Real** (1 unit) | filmed for the 1-minute hardware clip |
+| ESP32 unit | **Real** (1 unit) | filmed for the 1-minute hardware clip; demo clock 900×, battery unknown |
 | Phone relay | **Real** | ESP32 joins phone hotspot, posts over HTTPS |
 | Cloud ingest/scorer/console | **Real**, live | Nebius Serverless Endpoint |
 | Nemotron calls | **Real** | Token Factory |
@@ -63,8 +63,10 @@ judges can see the reasoning. The LLM never changes them.
 
 ## Hours-to-unsafe forecast
 
-Least-squares line through the last N heat-index readings; solve for when it
-crosses 103 °F (NWS "danger"). Shown on the OLED and the map.
+Least-squares line through the last N heat-index readings against the device
+clock (`uptime_s`, so it is in the same accelerated hours as `min_dark` during
+the demo); solve for when it crosses 103 °F (NWS "danger"). A reboot resets
+the series. Shown on the map.
 
 ## Agent layout (Token Factory)
 
