@@ -52,3 +52,8 @@ def test_sos_floor():
     h = dict(heat_index_f=82, hours_to_unsafe=None, min_dark=10, min_since_motion=0,
              medical_load=False, on_generator=False, occupants=1, sos=True)
     assert score(h)["risk"] >= 90
+
+
+def test_battery_unknown_roundtrip():
+    q = packet.decode(packet.encode(sample(battery_pct=packet.BATTERY_UNKNOWN)))
+    assert q.battery_pct == 255

@@ -8,6 +8,7 @@ SIZE = struct.calcsize(FMT)  # 24
 assert SIZE == 24
 
 F_GRID, F_SOS, F_GEN, F_SHED, F_MED = 1, 2, 4, 8, 16
+BATTERY_UNKNOWN = 255  # plain power bank; min_* and uptime_s use the (demo) device clock
 
 
 def crc16_ccitt(data: bytes, crc: int = 0xFFFF) -> int:
