@@ -55,7 +55,8 @@ def storm_features(track: list[dict], c: dict) -> dict:
 def outage_targets(path: pathlib.Path, mcc: dict[str, int], end: str) -> dict[str, dict]:
     series: dict[str, list[tuple[dt.datetime, int]]] = defaultdict(list)
     for r in csv.DictReader(path.open()):
-        series[r["fips_code"].zfill(5)].append((dt.datetime.fromisoformat(r["run_start_time"]), int(float(r["customers_out"] or 0))))
+        out_ = r.get("customers_out", r.get("sum"))   # the 2023 file names the column "sum"
+        series[r["fips_code"].zfill(5)].append((dt.datetime.fromisoformat(r["run_start_time"]), int(float(out_ or 0))))
     end_t = dt.datetime.fromisoformat(end + " 23:59:59")
     out = {}
     for fips, s in series.items():

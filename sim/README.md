@@ -21,3 +21,18 @@ python sim/demand_response.py --med-share X --elderly-share Y
 docker build -f sim/Dockerfile -t nightlight-sim .
 docker run --rm -v "$PWD/data:/job/data" nightlight-sim sim/outage_sim.py --med-share X --elderly-share Y
 ```
+
+## Milton forecaster: first result (real data, 2026-10-29)
+
+Trained on 335 county×storm rows (Irma, Michael, Ian, Idalia, Helene), tested
+on all 67 Florida counties for Milton, which the model never saw.
+
+| Target | Model MAE | Baseline MAE (training mean) | Verdict |
+|---|---|---|---|
+| Peak % customers out | **10.8 pts** | 25.3 pts | useful: less than half the baseline error |
+| Hours from peak to 50% restored | 15.1 h | **11.3 h** | not useful yet: worse than the baseline |
+
+Known data issues: peaks are capped at 100% where EAGLE-I's modeled customer
+count (MCC) is below the reported outages, and a few counties show very short
+spikes (e.g. Volusia, 0.8 h to half restored), which distort the restoration
+target. Use the peak-outage forecast; don't claim restoration-time skill.
