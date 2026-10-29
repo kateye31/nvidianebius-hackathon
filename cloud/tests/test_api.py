@@ -54,3 +54,30 @@ def test_template_brief_cites_scorer(client):
     client.post("/api/packet", json=guide_json(), headers=KEY)
     text = template(client.get("/v1/homes").json(), reason="no key")
     assert "TEMPLATE BRIEF" in text and "Unit 1" in text and "SOS" in text
+
+
+def test_sim_endpoint_reads_job_output_and_drops_trials(client, tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path)
+    assert client.get("/v1/sim").json() == {"simulated": True}
+    (tmp_path / "sim_result.json").write_text(json.dumps(
+        {"simulated": True, "trials": {"x": [1]}, "mean_weighted_person_hours": {"reduction_pct": 30}}))
+    s = client.get("/v1/sim").json()
+    assert s["sim_result"]["mean_weighted_person_hours"]["reduction_pct"] == 30
+    assert "trials" not in s["sim_result"]
+
+
+def test_checkin_without_model_is_503_not_a_guess(client, monkeypatch):
+    from app.agents import client as llm
+    monkeypatch.setattr(llm, "NANO", "")
+    monkeypatch.setattr("app.agents.checkin_parser.NANO", "")
+    r = client.post("/v1/checkin", json={"unit_id": 1, "text": "oxygen battery dies tonight"})
+    assert r.status_code == 503
+
+
+def test_triage_falls_back_per_home(client, monkeypatch):
+    monkeypatch.setattr("app.agents.triage_fanout.NANO", "")
+    client.post("/api/packet", json=guide_json(), headers=KEY)
+    why = client.get("/v1/triage").json()["why"]
+    assert why["1"].startswith("(no explanation")
+    assert isinstance(client.get("/v1/usage").json(), dict)

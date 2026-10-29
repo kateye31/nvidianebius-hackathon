@@ -2,6 +2,10 @@ const map = L.map("map").setView([26.62, -82.13], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   { attribution: "© OpenStreetMap" }).addTo(map);
 const layer = L.layerGroup().addTo(map);
+map.createPane("hubs").style.zIndex = 350;   // under the home markers (overlayPane = 400)
+const hubLayer = L.layerGroup().addTo(map);
+let why = {};   // unit_id -> Nemotron Nano one-liner (wording only; rank is the scorer's)
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const color = r => r >= 80 ? "#f85149" : r >= 55 ? "#f0883e" : r >= 30 ? "#d29922" : "#3fb950";
 
 async function refresh() {
@@ -22,7 +26,8 @@ async function refresh() {
     <td>${h.grid_present ? "on" : '<b class="off">OFF</b>'}</td><td>${h.heat_index_f}</td>
     <td>${h.grid_present ? "–" : hrs(h.min_dark)}</td><td>${hrs(h.min_since_motion)}</td>
     <td>${h.hours_to_unsafe ?? "–"}</td>
-    <td>${h.sos ? '<b class="off">SOS</b> · ' : ""}${h.top_reasons.join(", ")}</td></tr>`).join("");
+    <td>${h.sos ? '<b class="off">SOS</b> · ' : ""}${h.top_reasons.join(", ")}
+      ${why[h.unit_id] ? `<div class="why">${esc(why[h.unit_id])}</div>` : ""}</td></tr>`).join("");
   // draw simulated first and real units last so the real unit is always on top
   [...homes].sort((a, b) => (b.synthetic - a.synthetic) || (a.risk - b.risk)).forEach(h => L.circleMarker([h.lat, h.lon], {
       radius: h.synthetic ? 5 : 11, color: h.grid_present ? color(h.risk) : "#000",
@@ -45,4 +50,52 @@ document.getElementById("brief").onclick = async () => {
   catch (e) { out.textContent = "Brief failed: " + e; }
 };
 
-refresh(); setInterval(refresh, 5000);
+document.getElementById("triage").onclick = async e => {
+  e.target.disabled = true; e.target.textContent = "Asking Nano…";
+  try { why = (await (await fetch("/v1/triage?top=20")).json()).why || {}; await refresh(); }
+  finally { e.target.disabled = false; e.target.textContent = "Explain top 20 (Nano)"; }
+};
+
+document.getElementById("checkin").onsubmit = async e => {
+  e.preventDefault();
+  const out = document.getElementById("ciOut");
+  out.textContent = "Parsing…";
+  const r = await fetch("/v1/checkin", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ unit_id: +document.getElementById("ciUnit").value,
+                           text: document.getElementById("ciText").value }) });
+  const b = await r.json();
+  out.textContent = r.ok ? JSON.stringify(b, null, 2) : (b.detail || "failed");
+};
+
+// Simulation results: headline tiles + one comparison (one series, so one hue, direct labels).
+const fmt = n => Math.round(n).toLocaleString();
+async function loadSim() {
+  let s;
+  try { s = await (await fetch("/v1/sim")).json(); } catch { return; }
+  const tiles = [], r = s.sim_result?.mean_weighted_person_hours;
+  if (r) tiles.push([`−${r.reduction_pct}%`, "weighted person-hours above 103 °F vs biggest-feeder-first"]);
+  if (s.hubs) tiles.push([`${Math.round(s.hubs.covered_share * 100)}%`, `of danger within ${s.hubs.params.radius_km} km of ${s.hubs.hubs.length} hubs`]);
+  if (s.demand_response) tiles.push([`${s.demand_response.avg_mw_shaved} MW`, `shaved at the heat peak; ${s.demand_response.medical_homes_never_cycled} medical homes never cycled`]);
+  if (s.predict_milton?.mae_peak_pct_out != null) tiles.push([`${s.predict_milton.mae_peak_pct_out} pts`, "MAE, peak % customers out, held-out Milton"]);
+  if (!tiles.length) return;
+  document.getElementById("simPanel").hidden = false;
+  document.getElementById("simTiles").innerHTML = tiles.map(([v, l]) =>
+    `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  if (r) {
+    const max = Math.max(r.biggest_first, r.nightlight);
+    const bar = (label, v) => `<div class="bar" title="${label}: ${fmt(v)} weighted person-hours">
+      <span class="bl">${label}</span><span class="track"><span class="fill" style="width:${100 * v / max}%"></span></span>
+      <span class="bv">${fmt(v)}</span></div>`;
+    const el = document.getElementById("simBars");
+    el.setAttribute("aria-label", `Biggest feeder first ${fmt(r.biggest_first)}, Nightlight order ${fmt(r.nightlight)} weighted person-hours`);
+    el.innerHTML = `<div class="cap">Weighted person-hours above 103 °F (mean of ${s.sim_result.params.trials} runs)</div>` +
+      bar("Biggest feeder first", r.biggest_first) + bar("Nightlight order", r.nightlight);
+  }
+  hubLayer.clearLayers();
+  (s.hubs?.hubs || []).forEach((h, i) => L.marker([h.lat, h.lon], { pane: "hubs",
+      icon: L.divIcon({ className: "hub", html: `H${i + 1}`, iconSize: [22, 22] }) })
+    .bindPopup(`Hub ${i + 1} (simulated)<br>${h.new_homes} homes · ${h.medical_homes} medical<br>` +
+               `${Math.round(h.share_of_danger * 100)}% of danger`).addTo(hubLayer));
+}
+
+refresh(); setInterval(refresh, 5000); loadSim();
