@@ -9,7 +9,7 @@ gazetteer (county centroids) used as model features.
   python data/fetch_eaglei.py            # ~5.5 GB streamed, a few minutes per year
 """
 from __future__ import annotations
-import csv, io, json, pathlib, sys, urllib.request, zipfile
+import csv, io, json, pathlib, sys, time, urllib.request, zipfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from fetch_storms import STORMS  # noqa: E402
@@ -24,14 +24,42 @@ def files() -> dict[str, str]:
     return {f["name"]: f["download_url"] for f in meta["files"]}
 
 
+def stream_lines(url: str, retries: int = 8):
+    """Yield decoded lines; on a dropped connection, resume with an HTTP Range
+    request from the end of the last complete line (figshare resets ~1 GB reads)."""
+    offset, attempt = 0, 0
+    while True:
+        req = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                if offset and r.status != 206:
+                    raise RuntimeError("server ignored Range; cannot resume")
+                buf = b""
+                while chunk := r.read(1 << 20):
+                    buf += chunk
+                    *lines, buf = buf.split(b"\n")
+                    for ln in lines:
+                        offset += len(ln) + 1
+                        yield ln.decode("utf-8-sig" if offset == len(ln) + 1 else "utf-8")
+                if buf:
+                    yield buf.decode()
+                return
+        except (ConnectionError, TimeoutError, OSError) as e:
+            attempt += 1
+            if attempt > retries:
+                raise
+            print(f"  connection dropped at {offset / 1e9:.2f} GB ({type(e).__name__}); resuming")
+            time.sleep(min(30, 2 ** attempt))
+
+
 def storm_slice(url: str, sid: str, name: str, start: str, end: str) -> pathlib.Path:
     out = RAW / f"eaglei_fl_{name.lower()}.csv"
     if out.exists():
         print(f"{out.name} exists, skipping")
         return out
     kept = 0
-    with urllib.request.urlopen(url, timeout=120) as r, open(out.with_suffix(".part"), "w", newline="") as w:
-        rows = csv.reader(io.TextIOWrapper(r, encoding="utf-8-sig"))
+    with open(out.with_suffix(".part"), "w", newline="") as w:
+        rows = csv.reader(stream_lines(url))
         header = next(rows)
         i_state, i_time = header.index("state"), header.index("run_start_time")
         wr = csv.writer(w)
