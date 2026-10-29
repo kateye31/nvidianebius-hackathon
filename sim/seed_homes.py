@@ -1,7 +1,31 @@
 """Synthetic homes for a ZIP, seeded from REAL public ratios.
-Every home is labeled synthetic=True. TODO(mate): load ratios from data/processed."""
+Every home is labeled synthetic=True. Ratios come from
+data/processed/zip_ratios.csv (data/fetch_empower.py) via --zip, or are passed
+directly with --med-share / --elderly-share."""
 from __future__ import annotations
-import random
+import argparse, csv, pathlib, random
+
+RATIOS = pathlib.Path(__file__).resolve().parents[1] / "data" / "processed" / "zip_ratios.csv"
+
+
+def add_share_args(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("--zip", help="read med/elderly shares for this ZIP from zip_ratios.csv")
+    ap.add_argument("--med-share", type=float, help="emPOWER electricity-dependent share")
+    ap.add_argument("--elderly-share", type=float, help="Census ACS share of households with 65+")
+
+
+def resolve_shares(a: argparse.Namespace) -> tuple[float, float]:
+    if a.zip:
+        if not RATIOS.exists():
+            raise SystemExit(f"{RATIOS} missing: run data/fetch_empower.py with CENSUS_API_KEY set")
+        for r in csv.DictReader(RATIOS.open()):
+            if r["zip"] == a.zip:
+                a.med_share, a.elderly_share = float(r["med_share"]), float(r["elderly_share"])
+                return a.med_share, a.elderly_share
+        raise SystemExit(f"ZIP {a.zip} not in {RATIOS}")
+    if a.med_share is None or a.elderly_share is None:
+        raise SystemExit("pass --zip, or both --med-share and --elderly-share (real ratios, see docs/DATA.md)")
+    return a.med_share, a.elderly_share
 
 
 def seed(n_homes: int, med_share: float, elderly_share: float, n_feeders: int,
