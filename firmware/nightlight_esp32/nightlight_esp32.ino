@@ -106,21 +106,48 @@ void setup() {
   lastMotionMs = millis();
 }
 
-void sendPacket(const NightlightPacket& p) {
+// Offline queue: when the hotspot drops, packets wait here (FIFO, static memory)
+// and go out in order once it is back, so the cloud sees the whole outage.
+constexpr int QUEUE_N = 48;                 // 4 min of 5 s packets; oldest dropped when full
+constexpr int FLUSH_PER_LOOP = 8;           // keep the loop (LED, SOS, sensors) responsive
+NightlightPacket queueBuf[QUEUE_N];
+int qHead = 0, qLen = 0;
+
+void enqueue(const NightlightPacket& p) {
+  if (qLen == QUEUE_N) { qHead = (qHead + 1) % QUEUE_N; qLen--; Serial.println("queue full, dropped oldest"); }
+  queueBuf[(qHead + qLen) % QUEUE_N] = p;
+  qLen++;
+}
+
+// Returns the HTTP code, or a negative number if nothing was sent.
+int postOne(const NightlightPacket& p) {
   char b64[48]; size_t olen = 0;
   mbedtls_base64_encode((unsigned char*)b64, sizeof(b64), &olen, (const uint8_t*)&p, sizeof(p));
   char body[80];
   snprintf(body, sizeof(body), "{\"p\":\"%s\"}", b64);
-  if (WiFi.status() != WL_CONNECTED) { Serial.println("no wifi, skipped"); return; }
   WiFiClientSecure tls; tls.setInsecure();    // hackathon demo; TODO(arwa): pin endpoint cert
   HTTPClient http;
   http.setTimeout(5000);
   bool ok = strncmp(API_URL, "https", 5) == 0 ? http.begin(tls, API_URL) : http.begin(API_URL);
-  if (!ok) { Serial.println("bad API_URL"); return; }
+  if (!ok) { Serial.println("bad API_URL"); return -100; }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Unit-Key", INGEST_KEY);
-  Serial.printf("POST -> %d\n", http.POST((uint8_t*)body, strlen(body)));
+  int code = http.POST((uint8_t*)body, strlen(body));
   http.end();
+  return code;
+}
+
+void sendPacket(const NightlightPacket& p) {
+  enqueue(p);
+  if (WiFi.status() != WL_CONNECTED) { Serial.printf("no wifi, queued (%d waiting)\n", qLen); return; }
+  for (int i = 0; i < FLUSH_PER_LOOP && qLen > 0; i++) {
+    int code = postOne(queueBuf[qHead]);
+    Serial.printf("POST seq %u -> %d\n", queueBuf[qHead].seq, code);
+    if (code < 200 || code >= 500) break;   // network/server trouble: keep it, retry next loop
+    // 2xx stored; 4xx will never succeed (bad key/packet), so drop rather than block the queue
+    qHead = (qHead + 1) % QUEUE_N; qLen--;
+  }
+  if (qLen > 0) Serial.printf("%d packet(s) still queued\n", qLen);
 }
 
 void loop() {
