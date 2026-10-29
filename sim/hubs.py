@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, json, math, os, pathlib, random, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from seed_homes import seed  # noqa: E402
+from seed_homes import add_share_args, resolve_shares, seed  # noqa: E402
 
 
 def danger_weight(h: dict) -> float:
@@ -68,8 +68,7 @@ async def judge(picks: list[dict]) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--homes", type=int, default=2000)
-    ap.add_argument("--med-share", type=float, required=True, help="from emPOWER for the ZIP")
-    ap.add_argument("--elderly-share", type=float, required=True, help="from Census ACS")
+    add_share_args(ap)
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--radius-km", type=float, default=2.0)
     ap.add_argument("--candidates", type=int, default=150)
@@ -77,6 +76,7 @@ def main() -> None:
     ap.add_argument("--judge", action="store_true", help="1 Nemotron Ultra call for trade-offs")
     ap.add_argument("--out", default="data/processed/hubs.json")
     a = ap.parse_args()
+    resolve_shares(a)
     rng = random.Random(a.seed)
     homes = seed(a.homes, a.med_share, a.elderly_share, max(4, a.homes // 50), rng=rng)
     picks = greedy(homes, candidates(homes, a.candidates, rng), a.k, a.radius_km)

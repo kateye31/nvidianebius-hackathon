@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse, json, math, pathlib, random, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from seed_homes import seed  # noqa: E402
+from seed_homes import add_share_args, resolve_shares, seed  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "cloud"))
@@ -63,8 +63,7 @@ def simulate(homes: list[dict], start_h: float, end_h: float, groups: int, cap_f
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--homes", type=int, default=5000)
-    ap.add_argument("--med-share", type=float, required=True, help="from emPOWER for the ZIP")
-    ap.add_argument("--elderly-share", type=float, required=True, help="from Census ACS")
+    add_share_args(ap)
     ap.add_argument("--start-h", type=float, default=14.0)
     ap.add_argument("--end-h", type=float, default=18.0)
     ap.add_argument("--groups", type=int, default=4, help="4 groups = each AC off 25%% of the time")
@@ -75,6 +74,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="data/processed/demand_response.json")
     a = ap.parse_args()
+    resolve_shares(a)
     homes = seed(a.homes, a.med_share, a.elderly_share, 40, rng=random.Random(a.seed))
     res = simulate(homes, a.start_h, a.end_h, a.groups, a.cap_f, a.ac_kw, a.peak_f, a.rh)
     res["params"] = vars(a)

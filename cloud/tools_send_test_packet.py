@@ -1,9 +1,10 @@
 """Send packets to the API without hardware. Everything sent here is synthetic.
 
   python tools_send_test_packet.py                      # one test unit (9001)
+  python tools_send_test_packet.py --fleet 150 --zip 33956
   python tools_send_test_packet.py --fleet 150 --med-share X --elderly-share Y
-      # SIMULATED homes around the island, seeded by sim/seed_homes.py.
-      # X: emPOWER electricity-dependent share for the ZIP; Y: ACS 65+ share.
+      # SIMULATED homes around the island, seeded by sim/seed_homes.py from
+      # real ZIP ratios (data/fetch_empower.py), or ratios you pass in.
 """
 import argparse, base64, os, sys, pathlib, random, httpx
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -57,13 +58,12 @@ def fleet(n: int, med_share: float, elderly_share: float, seed: int) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fleet", type=int, default=0, help="number of simulated homes")
-    ap.add_argument("--med-share", type=float, help="from emPOWER for the ZIP")
-    ap.add_argument("--elderly-share", type=float, help="from Census ACS")
+    from seed_homes import add_share_args, resolve_shares
+    add_share_args(ap)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     if a.fleet:
-        if a.med_share is None or a.elderly_share is None:
-            ap.error("--fleet needs --med-share and --elderly-share (real ratios, see docs/DATA.md)")
+        resolve_shares(a)
         fleet(a.fleet, a.med_share, a.elderly_share, a.seed)
         return
     p = Packet(1, 9001, 1, F_MED, 77, 32.0, 72, 40.5, 3, 200, 420, 2, 9999)

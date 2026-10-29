@@ -2,11 +2,14 @@
 Runs locally or as a Nebius Serverless Job. Output is labeled simulated.
 
 Example:
-  python sim/outage_sim.py --homes 2000 --med-share <emPOWER ratio> \
-      --elderly-share <ACS ratio> --out data/processed/sim_result.json
+  python sim/outage_sim.py --homes 2000 --zip 33956
+  python sim/outage_sim.py --homes 2000 --med-share <emPOWER ratio> --elderly-share <ACS ratio>
 """
 from __future__ import annotations
-import argparse, json, random
+import argparse, json, pathlib, random, sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from seed_homes import add_share_args, resolve_shares, seed  # noqa: E402
 
 DANGER = 103.0
 
@@ -48,15 +51,11 @@ def main():
     ap.add_argument("--feeders", type=int, default=40)
     ap.add_argument("--crews", type=int, default=4)
     ap.add_argument("--hours-per-feeder", type=float, default=6.0)
-    ap.add_argument("--med-share", type=float, required=True, help="from emPOWER for the ZIP")
-    ap.add_argument("--elderly-share", type=float, required=True, help="from Census ACS")
+    add_share_args(ap)
     ap.add_argument("--trials", type=int, default=50)
     ap.add_argument("--out", default="data/processed/sim_result.json")
     a = ap.parse_args()
-
-    import sys, pathlib
-    sys.path.insert(0, str(pathlib.Path(__file__).parent))
-    from seed_homes import seed
+    resolve_shares(a)
 
     res = {"biggest_first": [], "nightlight": []}
     for t in range(a.trials):
