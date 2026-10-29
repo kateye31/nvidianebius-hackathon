@@ -59,7 +59,7 @@ def test_template_brief_cites_scorer(client):
 def test_sim_endpoint_reads_job_output_and_drops_trials(client, tmp_path, monkeypatch):
     import json
     monkeypatch.setattr(main, "DATA_DIR", tmp_path)
-    assert client.get("/v1/sim").json() == {"simulated": True}
+    assert client.get("/v1/sim").json() == {}
     (tmp_path / "sim_result.json").write_text(json.dumps(
         {"simulated": True, "trials": {"x": [1]}, "mean_weighted_person_hours": {"reduction_pct": 30}}))
     s = client.get("/v1/sim").json()

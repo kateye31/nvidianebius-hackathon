@@ -176,8 +176,9 @@ DATA_DIR = Path(os.environ.get("SIM_DATA_DIR", Path(__file__).resolve().parents[
 
 @app.get("/v1/sim")
 def sim():
-    """Latest Serverless Job outputs, if present. All simulated and labeled so."""
-    out: dict = {"simulated": True}
+    """Latest Serverless Job outputs, if present. Each file carries its own
+    `simulated` flag (the Milton forecaster is real data; the rest is simulated)."""
+    out: dict = {}
     for name in ("sim_result", "hubs", "demand_response", "predict_milton"):
         f = DATA_DIR / f"{name}.json"
         if f.exists():

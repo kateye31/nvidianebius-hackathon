@@ -73,14 +73,17 @@ async function loadSim() {
   let s;
   try { s = await (await fetch("/v1/sim")).json(); } catch { return; }
   const tiles = [], r = s.sim_result?.mean_weighted_person_hours;
-  if (r) tiles.push([`−${r.reduction_pct}%`, "weighted person-hours above 103 °F vs biggest-feeder-first"]);
-  if (s.hubs) tiles.push([`${Math.round(s.hubs.covered_share * 100)}%`, `of danger within ${s.hubs.params.radius_km} km of ${s.hubs.hubs.length} hubs`]);
-  if (s.demand_response) tiles.push([`${s.demand_response.avg_mw_shaved} MW`, `shaved at the heat peak; ${s.demand_response.medical_homes_never_cycled} medical homes never cycled`]);
-  if (s.predict_milton?.mae_peak_pct_out != null) tiles.push([`${s.predict_milton.mae_peak_pct_out} pts`, "MAE, peak % customers out, held-out Milton"]);
+  const SIM = "SIMULATED", REAL = "REAL DATA";
+  if (r) tiles.push([`−${r.reduction_pct}%`, "weighted person-hours above 103 °F vs biggest-feeder-first", SIM]);
+  if (s.hubs) tiles.push([`${Math.round(s.hubs.covered_share * 100)}%`, `of danger within ${s.hubs.params.radius_km} km of ${s.hubs.hubs.length} hubs`, SIM]);
+  if (s.demand_response) tiles.push([`${s.demand_response.avg_mw_shaved} MW`, `shaved at the heat peak; ${s.demand_response.medical_homes_never_cycled} medical homes never cycled`, SIM]);
+  const pm = s.predict_milton;
+  if (pm?.mae_peak_pct_out != null) tiles.push([`${pm.mae_peak_pct_out} pts`,
+    `MAE, peak % customers out, held-out Milton (baseline ${pm.baseline_mae_peak_pct_out})`, pm.simulated === false ? REAL : SIM]);
   if (!tiles.length) return;
   document.getElementById("simPanel").hidden = false;
-  document.getElementById("simTiles").innerHTML = tiles.map(([v, l]) =>
-    `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  document.getElementById("simTiles").innerHTML = tiles.map(([v, l, tag]) =>
+    `<div class="tile"><div class="sim">${tag}</div><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
   if (r) {
     const max = Math.max(r.biggest_first, r.nightlight);
     const bar = (label, v) => `<div class="bar" title="${label}: ${fmt(v)} weighted person-hours">
@@ -88,7 +91,7 @@ async function loadSim() {
       <span class="bv">${fmt(v)}</span></div>`;
     const el = document.getElementById("simBars");
     el.setAttribute("aria-label", `Biggest feeder first ${fmt(r.biggest_first)}, Nightlight order ${fmt(r.nightlight)} weighted person-hours`);
-    el.innerHTML = `<div class="cap">Weighted person-hours above 103 °F (mean of ${s.sim_result.params.trials} runs)</div>` +
+    el.innerHTML = `<div class="cap">SIMULATED · weighted person-hours above 103 °F (mean of ${s.sim_result.params.trials} runs)</div>` +
       bar("Biggest feeder first", r.biggest_first) + bar("Nightlight order", r.nightlight);
   }
   hubLayer.clearLayers();
