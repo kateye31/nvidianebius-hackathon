@@ -17,9 +17,9 @@ API = os.environ.get("API", "http://localhost:8000")
 HDR = {"X-Unit-Key": os.environ.get("INGEST_KEY", "change-me")}
 
 
-def post(c: httpx.Client, p: Packet, lat: float, lon: float) -> None:
+def post(c: httpx.Client, p: Packet, lat: float, lon: float, zip_code: str | None = None) -> None:
     r = c.post(API + "/v1/ingest", headers=HDR, json={
-        "p": base64.b64encode(encode(p)).decode(), "lat": lat, "lon": lon, "synthetic": True})
+        "p": base64.b64encode(encode(p)).decode(), "lat": lat, "lon": lon, "zip": zip_code, "synthetic": True})
     r.raise_for_status()
 
 
@@ -32,7 +32,8 @@ def temp_for_hi(hi_f: float, rh: float) -> float:
     return lo
 
 
-def fleet(n: int, med_share: float, elderly_share: float, seed: int) -> None:
+def fleet(n: int, med_share: float, elderly_share: float, seed: int, zip_code: str | None) -> None:
+    """zip_code is the ZIP whose real ratios seeded the homes (None if ratios were passed in)."""
     from seed_homes import seed as seed_homes
     rng = random.Random(seed)
     homes = seed_homes(n, med_share, elderly_share, n_feeders=max(4, n // 25), rng=rng)
@@ -51,7 +52,7 @@ def fleet(n: int, med_share: float, elderly_share: float, seed: int) -> None:
                 p = Packet(1, unit, k, flags, BATTERY_UNKNOWN, round(f_to_c(temp_for_hi(hi_f, rh)), 1),
                            round(rh), round(f_to_c(hi_f), 1), min(tier(hi_f), 4), still_min,
                            round(hrs * 60), h["occupants"], 100000 + k * 3600)
-                post(c, p, h["lat"], h["lon"])
+                post(c, p, h["lat"], h["lon"], zip_code)
     print(f"sent {n} SIMULATED homes ({len(restored)} restored) to {API}")
 
 
@@ -64,7 +65,7 @@ def main() -> None:
     a = ap.parse_args()
     if a.fleet:
         resolve_shares(a)
-        fleet(a.fleet, a.med_share, a.elderly_share, a.seed)
+        fleet(a.fleet, a.med_share, a.elderly_share, a.seed, a.zip)
         return
     p = Packet(1, 9001, 1, F_MED, 77, 32.0, 72, 40.5, 3, 200, 420, 2, 9999)
     with httpx.Client(timeout=10) as c:

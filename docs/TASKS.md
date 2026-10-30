@@ -10,7 +10,6 @@
 | Thu 8–10 PM | film the hardware minute (`docs/DEMO.md`) | README, Devpost fields, `docs/FEEDBACK.md` | raw video saved in two places |
 | Fri 7:30–9 AM | re-shoot only if weak; upload | final cut, private-window click-through | everything opens logged out |
 | Fri 9–10:45 AM | submit on Devpost, screenshot | check the submission page | **submitted by 11:00 AM** |
-| Fri after 11 | HackSTEM deck, "smart restoration" framing | | |
 
 Checkpoints: motion flaky at 4 PM -> drop it. No POST by 6 PM -> film serial +
 webhook.site. Stuck 45 min on anything -> photo of wiring + serial, ask.

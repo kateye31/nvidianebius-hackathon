@@ -3,40 +3,119 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nightlight console</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg?v=9">
+<script>try { const t = localStorage.getItem("nl-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
-<header><b>Nightlight</b> <span id="status">loading…</span>
-  <button id="triage" class="ghost">Explain top 20 (Nano)</button>
-  <button id="brief">Crew brief (Nemotron)</button></header>
+<header>
+  <div class="brand"><img src="icon.svg?v=9" alt="" width="28" height="28"><b>Nightlight</b></div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <span class="tab-pill" aria-hidden="true"></span>
+    <button role="tab" data-tab="map" aria-selected="true"><i data-lucide="map"></i><span>Map</span></button>
+    <button role="tab" data-tab="device" aria-selected="false"><i data-lucide="cpu"></i><span>Device</span></button>
+    <button role="tab" data-tab="crew" aria-selected="false"><i data-lucide="users"></i><span>Crew</span></button>
+  </nav>
+  <span id="status">loading…</span>
+  <button id="theme" class="ghost icon" type="button" aria-label="Switch to dark mode"><i data-lucide="moon"></i></button>
+</header>
+
 <main>
-  <div id="map"></div>
-  <aside>
-    <table><thead><tr><th>#</th><th>Unit</th><th>Risk</th><th>Grid</th><th>HI °F</th><th>Hrs dark</th><th>Hrs still</th><th>Hrs to unsafe</th><th>Why</th></tr></thead>
-    <tbody id="rows"></tbody></table>
-    <p class="note">Hours are device-clock hours. The real unit runs a 900× demo clock
-      (1 real second = 15 simulated minutes). Homes marked SIMULATED are synthetic.</p>
-    <pre id="briefOut"></pre>
+  <!-- Map: every home, ranked by the scorer -->
+  <section class="view view-map" id="view-map">
+    <div id="map"></div>
+    <aside class="card">
+      <div class="card-head">
+        <h2>Homes, highest risk first</h2>
+        <button id="triage" class="ghost small"><i data-lucide="list-checks"></i><span>Explain top 20 (Nano)</span></button>
+      </div>
+      <div class="table-scroll">
+        <table id="rank"><thead><tr><th>#</th><th>Unit</th><th>Risk</th><th>Grid</th><th>HI °F</th>
+          <th class="opt" title="Hours without wall power">Dark h</th><th class="opt" title="Hours since motion was last seen">Still h</th>
+          <th title="Hours until the heat index passes 103 °F">Unsafe in</th></tr></thead></table>
+      </div>
+      <p class="note">Hours are device-clock hours. The real unit runs a 900× demo clock
+        (1 real second = 15 simulated minutes). The line under each home is the scorer's reasons;
+        Nano only rewords them. Homes marked SIMULATED are synthetic.</p>
+      <section id="simPanel" hidden>
+        <h3>Planning results <span class="sim">Nebius Serverless Job</span></h3>
+        <div class="tiles" id="simTiles"></div>
+        <div id="simBars" role="img"></div>
+      </section>
+    </aside>
+  </section>
 
-    <section id="simPanel" hidden>
-      <h3>Planning results <span class="sim">Nebius Serverless Job</span></h3>
-      <div class="tiles" id="simTiles"></div>
-      <div id="simBars" role="img"></div>
-    </section>
+  <!-- Device: the one real ESP32 box, live -->
+  <section class="view" id="view-device" hidden>
+    <div class="view-head">
+      <h2>Unit 1 · the real box <span id="devState"></span></h2>
+      <p class="sub">ESP32 + DHT11 on a phone hotspot. Charts show its most recent packets, newest on the right.</p>
+    </div>
+    <div class="readings" id="readings"></div>
+    <div class="charts">
+      <figure class="card chart" id="chTemp">
+        <figcaption><h3>Temperature and heat index</h3><span class="unit">°F</span></figcaption>
+        <div class="legend"><span><i style="background:var(--series-1)"></i>Temperature</span><span><i style="background:var(--series-2)"></i>Heat index</span></div>
+        <div class="plot"></div>
+      </figure>
+      <figure class="card chart" id="chHum">
+        <figcaption><h3>Humidity</h3><span class="unit">%</span></figcaption>
+        <div class="plot"></div>
+      </figure>
+    </div>
+    <figure class="card chart" id="chGrid">
+      <figcaption><h3>Wall power</h3><span class="unit">on / off over the same window</span></figcaption>
+      <div class="plot strip"></div>
+    </figure>
+    <div class="card">
+      <div class="card-head"><h3>Packet log</h3><span class="unit">the 24 bytes the box sends, newest first</span></div>
+      <div class="table-scroll">
+        <table class="log"><thead><tr><th>Time</th><th>Seq</th><th>Packet (hex)</th><th>Temp °F</th><th>RH %</th><th>Grid</th><th>SOS</th></tr></thead>
+        <tbody id="logRows"></tbody></table>
+      </div>
+    </div>
+  </section>
 
-    <section>
-      <h3>Resident check-in <span class="sim">parsed by Nemotron Nano</span></h3>
-      <form id="checkin">
-        <input id="ciUnit" type="number" min="0" max="65535" value="1" aria-label="Unit id">
-        <input id="ciText" placeholder="e.g. my mom's oxygen machine battery dies tonight" aria-label="Message">
-        <button>Parse</button>
-      </form>
-      <pre id="ciOut"></pre>
-    </section>
-  </aside>
+  <!-- Crew: what the restoration crew acts on -->
+  <section class="view" id="view-crew" hidden>
+    <div class="view-head">
+      <h2>Crew</h2>
+      <p class="sub">The scorer decides the order. Nemotron explains it and drafts the brief; a dispatcher approves.</p>
+    </div>
+    <div class="crew-grid">
+      <div class="card crew-brief">
+        <div class="card-head">
+          <h3>Restoration brief</h3>
+          <button id="brief"><i data-lucide="file-text"></i><span>Write brief (Nemotron)</span></button>
+        </div>
+        <p class="empty" id="briefEmpty">No brief yet. It's written from the current ranking, so it changes as homes heat up.</p>
+        <pre id="briefOut"></pre>
+      </div>
+      <div class="card">
+        <h3>Reach these first</h3>
+        <ol class="toplist" id="crewTop"></ol>
+      </div>
+      <div class="card crew-checkin">
+        <h3>Resident check-in <span class="sim">parsed by Nemotron Nano</span></h3>
+        <form id="checkin">
+          <input id="ciUnit" type="number" min="0" max="65535" value="1" aria-label="Unit id">
+          <input id="ciText" required placeholder="e.g. my mom's oxygen machine battery dies tonight" aria-label="Message">
+          <button><i data-lucide="corner-down-left"></i><span>Parse</span></button>
+        </form>
+        <pre id="ciOut"></pre>
+      </div>
+    </div>
+  </section>
 </main>
+<div class="tip" id="tip" hidden></div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Flip.min.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root { --bg:#f5f5f7; --panel:#fff; --fg:#1d1d1f; --muted:#5f5f64; --line:#d2d2d7; --accent:#0071e3; --nv:#76b900; --bad:#c9252d; --sim:#6e56cf; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); font:15px/1.4 Inter, sans-serif; color:var(--fg); }
+  #d { width:1400px; padding:40px 44px 36px; }
+  h1 { font-size:26px; font-weight:700; letter-spacing:-.02em; margin:0 0 4px; }
+  .lede { color:var(--muted); margin:0 0 28px; font-size:15px; }
+  .row { display:grid; grid-template-columns: 1fr 34px 1fr 34px 1.25fr 34px 1fr; align-items:stretch; }
+  .card { background:var(--panel); border-radius:16px; padding:16px 18px; box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06); border-top:4px solid var(--c, var(--accent)); }
+  .k { font-size:11.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c, var(--accent)); }
+  .t { font-size:18px; font-weight:650; letter-spacing:-.015em; margin:4px 0 8px; }
+  ul { margin:0; padding-left:17px; color:var(--muted); font-size:13.5px; line-height:1.55; }
+  li b { color:var(--fg); font-weight:600; }
+  .arrow { display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--muted); font-size:11px; text-align:center; }
+  .arrow svg { width:30px; height:16px; }
+  .tag { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; background:#ececf0; color:var(--muted); margin-top:10px; }
+  .tag.real { background:#e7f6ee; color:#1f7a4d; }
+  .under { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px; margin-top:22px; }
+  .down { height:22px; display:flex; justify-content:center; }
+  .note { margin-top:20px; color:var(--muted); font-size:13px; display:flex; gap:22px; }
+  .note span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; background:var(--c); }
+</style></head><body><div id="d">
+<h1>How Nightlight works</h1>
+<p class="lede">One real box in a home → a 24-byte packet → a deterministic risk score → Nemotron explains it → a person decides.</p>
+
+<div class="row">
+  <div class="card" style="--c:#e7352c">
+    <div class="k">In the home · ESP32</div>
+    <div class="t">The $15 box</div>
+    <ul><li><b>DHT11</b> temperature + humidity → heat index</li>
+        <li><b>HC-SR04</b> distance change = signs of life</li>
+        <li><b>Grid sense</b>, <b>SOS button</b>, status LED</li>
+        <li>Optional relay sheds the AC to keep a medical load on backup</li></ul>
+    <span class="tag real">REAL · 1 unit</span>
+  </div>
+  <div class="arrow"><svg viewBox="0 0 30 16"><path d="M0 8h26M20 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>24 bytes</div>
+  <div class="card">
+    <div class="k">Uplink</div>
+    <div class="t">Packet over a hotspot</div>
+    <ul><li>Grid, SOS, heat, motion, hours dark, occupants</li>
+        <li>CRC-16, frozen contract (<b>docs/PACKET.md</b>)</li>
+        <li>Phone hotspot → HTTPS, unit key header</li>
+        <li>Offline queue on the box; no address, ZIP only</li></ul>
+  </div>
+  <div class="arrow"><svg viewBox="0 0 30 16"><path d="M0 8h26M20 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>POST</div>
+  <div class="card" style="--c:#009688">
+    <div class="k">Cloud · FastAPI on Nebius</div>
+    <div class="t">Score first, LLM second</div>
+    <ul><li><b>SQLite</b> keeps each unit's history</li>
+        <li><b>Hours-to-unsafe</b> forecast: when the heat index passes 103 °F</li>
+        <li><b>Deterministic scorer</b> ranks every home: heat, trend, dark, still, medical, occupants; SOS floors at 90</li>
+        <li>Reasons come out as plain phrases with numbers</li></ul>
+  </div>
+  <div class="arrow"><svg viewBox="0 0 30 16"><path d="M0 8h26M20 2l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>ranked</div>
+  <div class="card" style="--c:#0071e3">
+    <div class="k">Console · Leaflet</div>
+    <div class="t">Map, Device, Crew</div>
+    <ul><li>Every home on a map, highest risk first</li>
+        <li>The real box live: charts + raw packet log</li>
+        <li>Crew brief and resident check-ins</li>
+        <li><b>A dispatcher approves.</b> Nothing touches grid equipment</li></ul>
+  </div>
+</div>
+
+<div class="under">
+  <div class="card" style="--c:var(--nv)">
+    <div class="k">NVIDIA Nemotron · Nebius Token Factory</div>
+    <div class="t">Explains, never ranks</div>
+    <ul><li><b>Nano</b>: one-line reason per top home (fan-out, semaphore 20) and check-in text → structured need</li>
+        <li><b>Super</b>: the crew's restoration brief + texts to residents</li>
+        <li><b>Ultra</b>: a few trade-off calls for the hub plan</li>
+        <li>No key or no credits → a labeled scorer-only template</li></ul>
+  </div>
+  <div class="card" style="--c:var(--sim)">
+    <div class="k">Nebius Serverless Job</div>
+    <div class="t">Planning at island scale</div>
+    <ul><li>Outage simulation: Nightlight order vs biggest-feeder-first</li>
+        <li>Cooling-hub siting and demand response</li>
+        <li>County outage forecaster (scikit-learn), tested on held-out <b>Hurricane Milton</b></li></ul>
+    <span class="tag">SIMULATED homes · labeled</span>
+  </div>
+  <div class="card" style="--c:#a35f00">
+    <div class="k">Real public data</div>
+    <div class="t">Grounded in Florida</div>
+    <ul><li><b>EAGLE-I</b> county outages 2014–2024 (ORNL)</li>
+        <li><b>HHS emPOWER</b> electricity-dependent Medicare users per ZIP</li>
+        <li><b>Census ACS</b> households and 65+ share · <b>NOAA HURDAT2</b> tracks</li>
+        <li><b>Tavily</b>: live NWS heat advisories for the brief</li></ul>
+    <span class="tag real">REAL DATA</span>
+  </div>
+</div>
+</div></body></html>

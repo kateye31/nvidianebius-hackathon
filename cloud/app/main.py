@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -19,12 +19,17 @@ INGEST_KEY = os.environ.get("INGEST_KEY", "change-me")
 
 # Real unit locations are set at install time. TODO(arwa): jittered demo coords.
 UNIT_LOCATIONS: dict[int, tuple[float, float]] = {1: (26.62, -82.13)}
+# ZIP of the installed real units (coarse on purpose: no addresses). Also the
+# crew brief's default area. TODO(arwa): set HOME_ZIP in .env to the box's ZIP.
+HOME_ZIP = os.environ.get("HOME_ZIP", "33956")
+ZIP = r"^\d{5}$"
 
 
 class Ingest(BaseModel):
     p: str                      # base64 of the 24-byte packet
     lat: float | None = None
     lon: float | None = None
+    zip: str | None = Field(None, pattern=ZIP)   # not in the packet; set at install / by the sim
     synthetic: bool = False     # sim job sets True
 
 
@@ -40,12 +45,15 @@ def ingest(body: Ingest, x_unit_key: str = Header(default="")):
         pk = packet.decode(base64.b64decode(body.p))
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return _store(pk, body.lat, body.lon, body.synthetic)
+    return _store(pk, body.lat, body.lon, body.synthetic, body.zip)
 
 
-def _store(pk: packet.Packet, lat: float | None, lon: float | None, synthetic: bool) -> dict:
+def _store(pk: packet.Packet, lat: float | None, lon: float | None, synthetic: bool,
+           zip_code: str | None = None) -> dict:
     if lat is None or lon is None:
         lat, lon = UNIT_LOCATIONS.get(pk.unit_id, (0.0, 0.0))
+    if zip_code:
+        db.set_zip(pk.unit_id, zip_code)
     new = db.insert_reading(pk.to_dict(), lat, lon, synthetic)
     return {"stored": new, "unit_id": pk.unit_id}
 
@@ -67,6 +75,7 @@ class JsonPacket(BaseModel):
     uptime_s: int | None = None
     lat: float | None = None
     lon: float | None = None
+    zip: str | None = Field(None, pattern=ZIP)
     synthetic: bool = False
 
 
@@ -88,7 +97,7 @@ def api_packet(b: JsonPacket, x_unit_key: str = Header(default="")):
         pk = packet.decode(packet.encode(pk))   # range-checks every field
     except (ValueError, struct.error) as e:
         raise HTTPException(400, f"field out of range: {e}")
-    return _store(pk, b.lat, b.lon, b.synthetic)
+    return _store(pk, b.lat, b.lon, b.synthetic, b.zip)
 
 
 def _forecast_series(unit_id: int) -> list[tuple[float, float]]:
@@ -106,9 +115,10 @@ def _forecast_series(unit_id: int) -> list[tuple[float, float]]:
     return run
 
 
-def _home_view(row) -> dict:
+def _home_view(row, zips: dict[int, str]) -> dict:
     d = json.loads(row["data"])
-    h = {**d, "lat": row["lat"], "lon": row["lon"], "synthetic": bool(row["synthetic"]),
+    zip_code = zips.get(d["unit_id"]) or (HOME_ZIP if d["unit_id"] in UNIT_LOCATIONS else None)
+    h = {**d, "lat": row["lat"], "lon": row["lon"], "synthetic": bool(row["synthetic"]), "zip": zip_code,
          "heat_index_f": round(c_to_f(d["heat_index_c"]), 1),
          "hours_to_unsafe": hours_to_unsafe(_forecast_series(d["unit_id"])),
          "battery_known": d["battery_pct"] != packet.BATTERY_UNKNOWN,
@@ -118,8 +128,10 @@ def _home_view(row) -> dict:
 
 @app.get("/v1/homes")
 def homes():
-    out = [_home_view(r) for r in db.latest_all()]
-    return sorted(out, key=lambda h: h["risk"], reverse=True)
+    zips = db.zips()
+    out = [_home_view(r, zips) for r in db.latest_all()]
+    # Equal risk: real units first (a real SOS outranks a simulated one), then by unit id.
+    return sorted(out, key=lambda h: (-h["risk"], h["synthetic"], h["unit_id"]))
 
 
 class CheckIn(BaseModel):
@@ -127,9 +139,25 @@ class CheckIn(BaseModel):
     text: str
 
 
+@app.get("/v1/history")
+def history(unit_id: int, limit: int = 120):
+    """Recent readings for one unit, oldest first, with the wire packet as hex (Device tab)."""
+    names = packet.Packet.__dataclass_fields__.keys()
+    out = []
+    for r in db.history(unit_id, min(limit, 500)):
+        d = json.loads(r["data"])
+        raw = packet.encode(packet.Packet(**{k: d[k] for k in names}))
+        out.append({**d, "received": r["received"], "synthetic": bool(r["synthetic"]),
+                    "temp_f": round(c_to_f(d["temp_c"]), 1),
+                    "heat_index_f": round(c_to_f(d["heat_index_c"]), 1), "hex": raw.hex(" ").upper()})
+    return out
+
+
 @app.post("/v1/checkin")
 async def checkin(body: CheckIn):
     from .agents.checkin_parser import parse
+    if not body.text.strip():   # an empty message makes Nano invent a need
+        raise HTTPException(422, "check-in text is empty")
     try:
         parsed = await parse(body.text)
     except Exception as e:  # no key / credits: say so instead of guessing a need
@@ -141,7 +169,7 @@ async def checkin(body: CheckIn):
 
 
 @app.get("/v1/brief")
-async def brief(zip_code: str = "33956"):
+async def brief(zip_code: str = HOME_ZIP):
     from .agents.crew_brief import template, write
     from .tools.tavily import live_context
     ranked = homes()

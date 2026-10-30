@@ -21,3 +21,7 @@ data/processed/*
 .DS_Store
 .vscode/
 .idea/
+
+# local media: screen recordings and raw phone photos (phone photos carry GPS)
+*.mp4
+*.zip

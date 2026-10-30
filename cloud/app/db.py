@@ -14,7 +14,20 @@ def conn() -> sqlite3.Connection:
         UNIQUE(unit_id, seq, uptime_s))""")
     c.execute("""CREATE TABLE IF NOT EXISTS checkins(
         unit_id INTEGER, received REAL, text TEXT, parsed TEXT)""")
+    # Install-time facts about a unit that are not in the 24-byte packet.
+    c.execute("CREATE TABLE IF NOT EXISTS units(unit_id INTEGER PRIMARY KEY, zip TEXT)")
     return c
+
+
+def set_zip(unit_id: int, zip_code: str) -> None:
+    with conn() as c:
+        c.execute("INSERT INTO units VALUES (?, ?) ON CONFLICT(unit_id) DO UPDATE SET zip=excluded.zip",
+                  (unit_id, zip_code))
+
+
+def zips() -> dict[int, str]:
+    with conn() as c:
+        return {r["unit_id"]: r["zip"] for r in c.execute("SELECT * FROM units")}
 
 
 def insert_reading(d: dict, lat: float, lon: float, synthetic: bool) -> bool:

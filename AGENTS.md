@@ -12,8 +12,8 @@ an SOS button, and a relay that sheds the AC to protect a medical load on
 backup power. The cloud ranks homes by danger and Nemotron writes the crew's
 restoration brief.
 
-Hackathons: Nebius x NVIDIA Global AI Hackathon (Physical AI track, due
-**Fri Oct 30 2026, 10:00 PDT**) and Siemens Energy HackSTEM 2026 (same repo).
+Hackathon: Nebius x NVIDIA Global AI Hackathon (Physical AI track, due
+**Fri Oct 30 2026, 10:00 PDT**).
 
 Read `docs/ARCHITECTURE.md` for the pipeline and `docs/PACKET.md` for the
 wire format before touching firmware or ingest.

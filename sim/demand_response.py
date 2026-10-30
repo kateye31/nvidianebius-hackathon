@@ -1,4 +1,4 @@
-"""Blue-sky days (HackSTEM priorities 2 and 3): during a heat-wave peak, cycle
+"""Blue-sky days: during a heat-wave peak, cycle
 enrolled AC in rotating groups to shave load. Medical homes are never cycled,
 and a home drops out of the event once its indoor heat index rises more than
 --cap-f above where it started. Everything here is SIMULATED and labeled.

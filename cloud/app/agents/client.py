@@ -25,6 +25,10 @@ async def chat(model: str, system: str, user: str, max_tokens: int = 400,
     if not model:
         raise RuntimeError("model id not set; copy it from Token Factory -> Models into .env")
     kw = {"response_format": {"type": "json_object"}} if json_mode else {}
+    # Nemotron 3 Nano and Super reason by default and can spend all of max_tokens
+    # before answering (Super's brief was cut after one line). Ultra keeps reasoning.
+    if model in (NANO, SUPER):
+        kw["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
     t0 = time.perf_counter()
     u = USAGE.setdefault(model, {"calls": 0, "errors": 0, "seconds": 0.0,
                                  "prompt_tokens": 0, "completion_tokens": 0})
@@ -41,7 +45,10 @@ async def chat(model: str, system: str, user: str, max_tokens: int = 400,
     if r.usage:
         u["prompt_tokens"] += r.usage.prompt_tokens
         u["completion_tokens"] += r.usage.completion_tokens
-    return r.choices[0].message.content or ""
+    out = r.choices[0].message.content or ""
+    if r.choices[0].finish_reason == "length" and not json_mode:   # say so instead of passing a cut-off reply as whole
+        out = out.rstrip() + " […cut off at max_tokens]"
+    return out
 
 
 def usage_summary() -> dict[str, dict]:

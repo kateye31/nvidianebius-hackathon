@@ -75,9 +75,39 @@ def test_checkin_without_model_is_503_not_a_guess(client, monkeypatch):
     assert r.status_code == 503
 
 
+def test_zip_rides_beside_the_packet(client):
+    client.post("/api/packet", json=guide_json(), headers=KEY)                       # real unit 1, no zip sent
+    client.post("/api/packet", json=guide_json(unit_id=10001, zip="33922", synthetic=True), headers=KEY)
+    client.post("/api/packet", json=guide_json(unit_id=10002, synthetic=True), headers=KEY)
+    z = {h["unit_id"]: h["zip"] for h in client.get("/v1/homes").json()}
+    assert z == {1: main.HOME_ZIP, 10001: "33922", 10002: None}
+    assert client.post("/api/packet", json=guide_json(zip="33956 Main St"), headers=KEY).status_code == 422
+
+
+def test_real_sos_ranks_above_simulated_sos_at_equal_risk(client):
+    client.post("/api/packet", json=guide_json(unit_id=10001, synthetic=True, hours_dark=0, grid_present=True,
+                                               heat_index_f=80, hours_since_motion=0), headers=KEY)
+    client.post("/api/packet", json=guide_json(unit_id=1, hours_dark=0, grid_present=True,
+                                               heat_index_f=80, hours_since_motion=0), headers=KEY)
+    top = client.get("/v1/homes").json()[:2]
+    assert [h["risk"] for h in top] == [90.0, 90.0] and top[0]["unit_id"] == 1
+
+
+def test_blank_checkin_is_rejected_before_nano(client):
+    assert client.post("/v1/checkin", json={"unit_id": 1, "text": "   "}).status_code == 422
+
+
 def test_triage_falls_back_per_home(client, monkeypatch):
     monkeypatch.setattr("app.agents.triage_fanout.NANO", "")
     client.post("/api/packet", json=guide_json(), headers=KEY)
     why = client.get("/v1/triage").json()["why"]
     assert why["1"].startswith("(no explanation")
     assert isinstance(client.get("/v1/usage").json(), dict)
+
+
+def test_history_returns_packets_oldest_first(client):
+    for i in range(3):
+        client.post("/api/packet", json=guide_json(uptime_s=500 + i, temp_f=80.0 + i), headers=KEY)
+    h = client.get("/v1/history", params={"unit_id": 1}).json()
+    assert [round(r["temp_f"]) for r in h] == [80, 81, 82]
+    assert len(bytes.fromhex(h[0]["hex"].replace(" ", ""))) == 24 and not h[0]["synthetic"]
