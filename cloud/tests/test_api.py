@@ -81,3 +81,11 @@ def test_triage_falls_back_per_home(client, monkeypatch):
     why = client.get("/v1/triage").json()["why"]
     assert why["1"].startswith("(no explanation")
     assert isinstance(client.get("/v1/usage").json(), dict)
+
+
+def test_history_returns_packets_oldest_first(client):
+    for i in range(3):
+        client.post("/api/packet", json=guide_json(uptime_s=500 + i, temp_f=80.0 + i), headers=KEY)
+    h = client.get("/v1/history", params={"unit_id": 1}).json()
+    assert [round(r["temp_f"]) for r in h] == [80, 81, 82]
+    assert len(bytes.fromhex(h[0]["hex"].replace(" ", ""))) == 24 and not h[0]["synthetic"]

@@ -127,6 +127,20 @@ class CheckIn(BaseModel):
     text: str
 
 
+@app.get("/v1/history")
+def history(unit_id: int, limit: int = 120):
+    """Recent readings for one unit, oldest first, with the wire packet as hex (Device tab)."""
+    names = packet.Packet.__dataclass_fields__.keys()
+    out = []
+    for r in db.history(unit_id, min(limit, 500)):
+        d = json.loads(r["data"])
+        raw = packet.encode(packet.Packet(**{k: d[k] for k in names}))
+        out.append({**d, "received": r["received"], "synthetic": bool(r["synthetic"]),
+                    "temp_f": round(c_to_f(d["temp_c"]), 1),
+                    "heat_index_f": round(c_to_f(d["heat_index_c"]), 1), "hex": raw.hex(" ").upper()})
+    return out
+
+
 @app.post("/v1/checkin")
 async def checkin(body: CheckIn):
     from .agents.checkin_parser import parse
