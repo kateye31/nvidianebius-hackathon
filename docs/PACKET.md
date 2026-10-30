@@ -26,7 +26,9 @@ second = 15 simulated minutes). `DEMO_SPEEDUP 1.0` is real time. The byte
 layout does not change.
 
 Transport: `POST /v1/ingest` with JSON `{"p": "<base64 of 24 bytes>"}` and
-header `X-Unit-Key`. Server keeps only the newest `(unit_id, uptime_s)` as
+header `X-Unit-Key`. Optional JSON fields beside `p` (not in the 24 bytes):
+`lat`, `lon`, `zip` (5 digits, kept per unit; real units default to
+`HOME_ZIP` from `.env`) and `synthetic`. Server keeps only the newest `(unit_id, uptime_s)` as
 current state; duplicates are `(unit_id, seq, uptime_s)` matches.
 
 Debug/compat transport: `POST /api/packet` with the plain JSON fields from the

@@ -54,6 +54,21 @@ def test_sos_floor():
     assert score(h)["risk"] >= 90
 
 
+def test_reasons_skip_zero_parts_and_dark_with_grid_on():
+    h = dict(heat_index_f=78, hours_to_unsafe=None, min_dark=600, min_since_motion=0,
+             medical_load=False, on_generator=False, occupants=3, sos=True, grid_present=True)
+    s = score(h)
+    assert s["top_reasons"] == ["occ"] and s["parts"]["dark"] == 0
+    assert s["reasons_plain"] == ["SOS pressed", "3 people home"]
+
+
+def test_plain_reasons_cite_numbers():
+    h = dict(heat_index_f=117.1, hours_to_unsafe=0, min_dark=1074, min_since_motion=90,
+             medical_load=False, on_generator=False, occupants=1, grid_present=False)
+    s = score(h)
+    assert s["reasons_plain"] == ["heat index 117 °F", "already past 103 °F", "no power 17.9 h"]
+
+
 def test_battery_unknown_roundtrip():
     q = packet.decode(packet.encode(sample(battery_pct=packet.BATTERY_UNKNOWN)))
     assert q.battery_pct == 255

@@ -68,8 +68,21 @@ function ripple(h) {
     onComplete: () => rippleLayer.removeLayer(ring) });
 }
 
+const ago = s => s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 const seenTag = h => h.synthetic ? '<span class="sim">SIMULATED</span>' : h.last_seen_s > 30
-  ? `<span class="stale">offline ${h.last_seen_s}s</span>` : '<span class="live">live</span>';
+  ? `<span class="stale">offline ${ago(h.last_seen_s)}</span>` : '<span class="live">live</span>';
+const unsafeIn = v => v == null ? "–" : v === 0 ? '<b class="off">now</b>' : `${v} h`;
+
+// One <tbody> per home: the numbers, then the scorer's reasons (and Nano's wording) full width underneath.
+const homeRows = (h, rank) => `<tbody class="home${h.sos ? " sosrow" : ""}${h.synthetic ? "" : " real"}" data-flip-id="u${h.unit_id}">
+  <tr><td>${rank}</td><td><b>${h.unit_id}</b></td>
+    <td class="risk" style="color:${risk(h.risk)}"><b>${h.risk.toFixed(1)}</b></td>
+    <td>${h.grid_present ? "on" : '<b class="off">OFF</b>'}</td><td>${h.heat_index_f.toFixed(1)}</td>
+    <td class="opt">${h.grid_present ? "–" : hrs(h.min_dark)}</td><td class="opt">${hrs(h.min_since_motion)}</td>
+    <td>${unsafeIn(h.hours_to_unsafe)}</td></tr>
+  <tr class="reasons"><td></td><td colspan="7">${seenTag(h)}
+    ${(h.reasons_plain || h.top_reasons || []).map(r => `<span class="rs">${r === "SOS pressed" ? '<b class="off">SOS pressed</b>' : esc(r)}</span>`).join(" · ") || "no risk factors yet"}
+    ${why[h.unit_id] ? `<div class="why">Nano: ${esc(why[h.unit_id])}</div>` : ""}</td></tr></tbody>`;
 
 async function refresh() {
   let homes;
@@ -78,22 +91,22 @@ async function refresh() {
   lastHomes = homes;
   layer.clearLayers();
   const real = homes.filter(h => !h.synthetic).length;
-  $("status").textContent = `${homes.length} homes · ${real} real unit${real === 1 ? "" : "s"} · ${homes.length - real} simulated`;
+  const zips = [...new Set(homes.map(h => h.zip).filter(Boolean))].sort();
+  $("status").textContent = (zips.length ? `ZIP${zips.length > 1 ? "s" : ""} ${zips.join(", ")} · ` : "") +
+    `${homes.length} homes · ${real} real unit${real === 1 ? "" : "s"} · ${homes.length - real} simulated`;
 
-  // Ranked table. Rows glide to their new rank (GSAP Flip).
-  const rowsEl = $("rows");
-  const before = motion && window.Flip ? Flip.getState(rowsEl.querySelectorAll("tr")) : null;
-  rowsEl.innerHTML = homes.slice(0, 50).map((h, i) => `
-    <tr data-flip-id="u${h.unit_id}" class="${h.sos ? "sosrow" : ""}"><td>${i + 1}</td>
-    <td>${h.unit_id} ${seenTag(h)}</td>
-    <td class="risk" style="color:${risk(h.risk)}"><b>${h.risk}</b></td>
-    <td>${h.grid_present ? "on" : '<b class="off">OFF</b>'}</td><td>${h.heat_index_f}</td>
-    <td>${h.grid_present ? "–" : hrs(h.min_dark)}</td><td>${hrs(h.min_since_motion)}</td>
-    <td>${h.hours_to_unsafe ?? "–"}</td>
-    <td class="wrap">${h.sos ? '<b class="off">SOS</b> · ' : ""}${h.top_reasons.join(", ")}
-      ${why[h.unit_id] ? `<div class="why">${esc(why[h.unit_id])}</div>` : ""}</td></tr>`).join("");
-  if (before) Flip.from(before, { targets: rowsEl.querySelectorAll("tr"), duration: 0.6, ease: "power3.out" });
-  if (motion) homes.slice(0, 50).forEach(h => {
+  // Ranked table: top 50, plus any real unit below that (shown at its true rank).
+  // Rows glide to their new rank (GSAP Flip).
+  const rowsEl = $("rank"), TOP = 50;
+  const pinned = homes.map((h, i) => [h, i + 1]).filter(([h, r]) => !h.synthetic && r > TOP);
+  const before = motion && window.Flip ? Flip.getState(rowsEl.querySelectorAll("tbody.home")) : null;
+  rowsEl.querySelectorAll("tbody").forEach(b => b.remove());
+  rowsEl.insertAdjacentHTML("beforeend", homes.slice(0, TOP).map((h, i) => homeRows(h, i + 1)).join("") +
+    (pinned.length ? `<tbody class="divider"><tr><td colspan="8">Real unit${pinned.length > 1 ? "s" : ""} below the top ${TOP}</td></tr></tbody>` : "") +
+    pinned.map(([h, r]) => homeRows(h, r)).join("") ||
+    '<tbody><tr><td colspan="8" class="empty">No homes yet. Start the box or run the simulator.</td></tr></tbody>');
+  if (before) Flip.from(before, { targets: rowsEl.querySelectorAll("tbody.home"), duration: 0.6, ease: "power3.out" });
+  if (motion) homes.forEach(h => {
     const p = prev[h.unit_id], row = rowsEl.querySelector(`[data-flip-id="u${h.unit_id}"]`);
     if (!p || !row) return;
     if (p.risk !== h.risk) {   // count the risk number to its new value
@@ -101,7 +114,7 @@ async function refresh() {
       gsap.to(n, { v: h.risk, duration: 0.8, ease: "power3.out", onUpdate: () => { b.textContent = n.v.toFixed(1); } });
     }
     if ((p.grid && !h.grid_present) || (!p.sos && h.sos)) {   // grid just cut or SOS just pressed
-      gsap.fromTo(row, { backgroundColor: css("--bad-flash") }, { backgroundColor: "rgba(0,0,0,0)", duration: 1.6, ease: "power2.out", clearProps: "backgroundColor" });
+      gsap.fromTo(row, { backgroundColor: css("--bad-flash") }, { backgroundColor: h.sos ? css("--bad-soft") : css("--panel"), duration: 1.6, ease: "power2.out", clearProps: "backgroundColor" });
       ripple(h);
     }
   });
@@ -112,17 +125,18 @@ async function refresh() {
       radius: h.synthetic ? 5 : 11, color: h.grid_present ? risk(h.risk) : css("--fg"),
       fillColor: risk(h.risk), weight: h.synthetic ? 1 : 3, fillOpacity: h.synthetic ? .6 : .9,
       dashArray: h.sos ? "4 3" : null })
-    .bindPopup(`<b>Unit ${h.unit_id}</b> ${h.synthetic ? "(simulated)" : "(real unit)"}<br>risk ${h.risk}` +
+    .bindPopup(`<b>Unit ${h.unit_id}</b> ${h.synthetic ? "(simulated)" : "(real unit)"}` +
+               `${h.zip ? ` · ZIP ${h.zip}` : ""}<br>risk ${h.risk}` +
                `${h.sos ? " · <b>SOS</b>" : ""}<br>HI ${h.heat_index_f} °F · grid ${h.grid_present ? "on" : "OFF"}` +
-               ` · dark ${hrs(h.min_dark)} h · still ${hrs(h.min_since_motion)} h` +
+               `${h.grid_present ? "" : ` · dark ${hrs(h.min_dark)} h`} · still ${hrs(h.min_since_motion)} h` +
                `<br>battery ${h.battery_known ? h.battery_pct + "%" : "unknown"}`)
     .addTo(layer));
 
   // Crew tab: the first homes to reach, straight from the scorer.
   $("crewTop").innerHTML = homes.slice(0, 6).map((h, i) => `<li><span class="n">${i + 1}</span>
     <span>Unit ${h.unit_id} ${h.synthetic ? '<span class="sim">SIMULATED</span>' : '<span class="live">real</span>'}
-      <div class="d">${h.sos ? "SOS · " : ""}${h.grid_present ? "grid on" : `dark ${hrs(h.min_dark)} h`} · HI ${h.heat_index_f} °F</div></span>
-    <span class="r" style="color:${risk(h.risk)}">${h.risk}</span></li>`).join("") || '<li class="empty">No homes yet.</li>';
+      <div class="d">${h.zip ? `ZIP ${h.zip} · ` : ""}${h.sos ? "SOS · " : ""}${h.grid_present ? "grid on" : `dark ${hrs(h.min_dark)} h`} · HI ${h.heat_index_f} °F</div></span>
+    <span class="r" style="color:${risk(h.risk)}">${h.risk.toFixed(1)}</span></li>`).join("") || '<li class="empty">No homes yet.</li>';
 }
 
 // ---------- device tab: the one real box ----------
@@ -135,9 +149,9 @@ const tfmt = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", m
 function drawDevice() {
   if ($("view-device").hidden) return;
   const r = devRows, last = r[r.length - 1];
-  const ago = last ? Math.round(Date.now() / 1000 - last.received) : null;
+  const age = last ? Math.round(Date.now() / 1000 - last.received) : null;
   $("devState").innerHTML = !last ? '<span class="sim">no packets yet</span>'
-    : ago > 30 ? `<span class="stale">offline ${ago}s</span>` : '<span class="live">live</span>';
+    : age > 30 ? `<span class="stale">offline ${ago(age)}</span>` : '<span class="live">live</span>';
   $("readings").innerHTML = !last ? "" : [
     ["thermometer", "Temperature", last.temp_f, "°F"], ["droplets", "Humidity", last.humidity_pct, "%"],
     ["sun", "Heat index", last.heat_index_f, "°F"],
@@ -160,9 +174,11 @@ function lineChart(el, rows, series) {
   if (rows.length < 2 || W < 50) { el.innerHTML = '<div class="empty">Waiting for packets from the box…</div>'; return; }
   const xs = rows.map(p => p.received), t0 = xs[0], t1 = xs[xs.length - 1] || t0 + 1;
   const vals = series.flatMap(([, k]) => rows.map(p => p[k]));
-  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = Math.max(1, (hi - lo) * 0.15); lo = Math.floor(lo - pad); hi = Math.ceil(hi + pad);
+  // Three equal whole-number steps, so tick labels are evenly spaced (not 45, 47, 48, 50).
+  const vmin = Math.min(...vals), vmax = Math.max(...vals), step = Math.max(1, Math.ceil((vmax - vmin + 2) / 3));
+  const lo = Math.floor(vmin - 1 - (3 * step - (vmax - vmin + 2)) / 2), hi = lo + 3 * step;
   const X = t => m.l + (t - t0) / Math.max(1, t1 - t0) * (W - m.l - m.r), Y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
-  const ticks = [0, 1, 2, 3].map(i => lo + (hi - lo) * i / 3);
+  const ticks = [0, 1, 2, 3].map(i => lo + step * i);
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${series.map(s => s[0]).join(" and ")} over time">`;
   ticks.forEach(v => { svg += `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="axis" x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`; });
   [t0, (t0 + t1) / 2, t1].forEach((t, i) => { svg += `<text class="axis" x="${X(t)}" y="${H - 4}" text-anchor="${["start", "middle", "end"][i]}">${new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</text>`; });
@@ -216,7 +232,9 @@ $("brief").onclick = async () => {
   out.textContent = "Asking Nemotron…";
   try {
     const b = await (await fetch("/v1/brief")).json();
-    out.textContent = (b.source === "nemotron" ? "Nemotron crew brief (ranking from scorer):\n\n" : "") + b.brief;
+    // The prompt asks for plain text; strip any markdown that slips through anyway.
+    const text = b.brief.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+    out.textContent = (b.source === "nemotron" ? "Nemotron crew brief (ranking from scorer):\n\n" : "") + text;
     if (motion) gsap.from(out, { opacity: 0, y: 6, duration: 0.35, ease: "power3.out", clearProps: "opacity,transform" });
   } catch (e) { out.textContent = "Brief failed: " + e; }
   finally { btn.disabled = false; label.textContent = "Write brief (Nemotron)"; }
@@ -226,17 +244,22 @@ $("triage").onclick = async () => {
   const btn = $("triage"), label = btn.querySelector("span");
   btn.disabled = true; label.textContent = "Asking Nano…";
   try { why = (await (await fetch("/v1/triage?top=20")).json()).why || {}; await refresh(); }
+  catch (e) { $("status").textContent = "Nano explanations failed; ranking unchanged"; }
   finally { btn.disabled = false; label.textContent = "Explain top 20 (Nano)"; }
 };
 
 $("checkin").onsubmit = async e => {
   e.preventDefault();
   const out = $("ciOut");
+  const text = $("ciText").value.trim();
+  if (!text) { out.textContent = "Type the resident's message first."; return; }
   out.textContent = "Parsing…";
-  const r = await fetch("/v1/checkin", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ unit_id: +$("ciUnit").value, text: $("ciText").value }) });
-  const b = await r.json();
-  out.textContent = r.ok ? JSON.stringify(b, null, 2) : (b.detail || "failed");
+  try {
+    const r = await fetch("/v1/checkin", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unit_id: +$("ciUnit").value, text }) });
+    const b = await r.json();
+    out.textContent = r.ok ? JSON.stringify(b, null, 2) : (typeof b.detail === "string" ? b.detail : "Check-in rejected: check the unit id.");
+  } catch (err) { out.textContent = "Check-in failed: API unreachable"; }
 };
 
 // ---------- simulation results (one series, one hue, direct labels) ----------
@@ -278,4 +301,4 @@ icons(); paintThemeButton();
 show(location.hash.slice(1) || "map", false);
 if (motion) gsap.from("header > *", { opacity: 0, y: -4, duration: 0.5, ease: "power3.out", stagger: 0.05, clearProps: "opacity,transform" });
 refresh(); loadSim();
-setInterval(() => { refresh(); if (!$("view-device").hidden) loadDevice(); }, 5000);
+setInterval(() => { refresh(); if (!$("view-device").hidden) loadDevice(); }, 2000);   // 2 s: an SOS shows up fast
